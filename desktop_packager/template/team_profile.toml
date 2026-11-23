@@ -1,0 +1,8 @@
+# Team defaults only. NEVER add passwords or usernames here.
+[mysql]
+host = "141.209.241.91"
+port = 3306
+database = "Fall2026BIS698TueG3s"
+
+[app]
+base_url = "http://127.0.0.1:8501"

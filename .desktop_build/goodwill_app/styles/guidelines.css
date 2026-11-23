@@ -1,0 +1,178 @@
+/* Goodwill Guidelines — page-specific styles.
+   Global page width, spacing, background and Streamlit chrome are controlled
+   by styles/global.css, loaded from app.py.
+   Dashboard Router owns the authenticated header. */
+
+.st-key-gw_nav {background:white; border-bottom:1px solid var(--gw-border); margin:0 0 26px; padding:16px 0;}
+.st-key-gw_nav [data-testid="stHorizontalBlock"] {align-items:center;}
+.st-key-gw_nav .gw-brand {display:flex; align-items:center; gap:13px; white-space:nowrap;}
+.st-key-gw_nav .gw-mark {width:45px; height:45px; border-radius:10px; background:var(--gw-brand); color:var(--gw-surface); display:flex; align-items:center; justify-content:center; font-size:29px; font-weight:750;}
+.st-key-gw_nav .gw-brand-name {display:block; font-size:24px; line-height:25px; color:var(--gw-brand); font-weight:800; letter-spacing:-.5px;}
+.st-key-gw_nav .gw-brand-sub {display:block; color:var(--gw-muted); font-size:9px; margin-top:2px;}
+.st-key-gw_nav .gw-nav-active {color:var(--gw-brand); font-weight:750; padding:21px 0 19px; border-bottom:3px solid var(--gw-accent); text-align:center;}
+.st-key-gw_nav .gw-identity {text-align:right; line-height:1.5; color:var(--gw-muted); font-size:12px;}
+.st-key-gw_nav .gw-identity b {color:var(--gw-brand); font-size:13px;}
+.st-key-gw_nav button {border:none!important; background:transparent!important; color:var(--gw-muted)!important; box-shadow:none!important;}
+.st-key-gw_nav button:disabled {opacity:.8!important;}
+.st-key-gw_nav .st-key-gw_top_logout button {color:#425d79!important;}
+
+.st-key-gw_guideline_content .gw-eyebrow {font-size:12px; font-weight:750; color:var(--gw-accent); margin-bottom:13px;}
+.st-key-gw_guideline_content .gw-page-title {font-size:32px; color:var(--gw-brand); font-weight:780; letter-spacing:-.5px; line-height:1.25;}
+.st-key-gw_guideline_content .gw-page-subtitle {color:var(--gw-muted); font-size:15px; margin:12px 0 24px;}
+.st-key-gw_add_guideline button {background:var(--gw-brand)!important; border:0!important; border-radius:8px!important; min-height:48px; color:white!important; font-weight:700!important;}
+.st-key-gw_add_guideline button:hover {background:var(--gw-brand-hover)!important;}
+
+.st-key-gw_guideline_table, .st-key-gw_guideline_editor_panel {border:1px solid var(--gw-border); background:white; border-radius:12px; padding:22px 22px 18px;}
+.gw-panel-heading {font-size:20px; color:var(--gw-brand); font-weight:750;}
+.gw-panel-sub {font-size:12px; color:var(--gw-muted); margin:4px 0 13px;}
+.gw-table-foot {color:var(--gw-muted); font-size:12px; margin:20px 0 5px;}
+.st-key-gw_guideline_editor_panel {margin-top:22px;}
+.gw-page-footer {display:flex; justify-content:space-between; gap:20px; margin:36px 0 0; font-size:12px; color:var(--gw-muted);}
+@media(max-width:850px) {
+  .st-key-gw_nav {margin:0 0 18px; padding:12px 0;}
+  .st-key-gw_nav .gw-brand-sub,
+  .st-key-gw_nav .gw-identity {display:none;}
+  .st-key-gw_nav .gw-brand-name {font-size:20px;}
+  .gw-page-footer {flex-wrap:wrap;}
+}
+
+/* Guidelines V2: selection-driven, sortable table with status-colored rows. */
+.st-key-gw_guideline_table .gw-status-legend {
+  display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:9px; margin:0;
+}
+.st-key-gw_guideline_table .gw-legend {
+  display:inline-flex; align-items:center; padding:4px 10px;
+  border-radius:18px; font-size:12px; font-weight:650;
+}
+.st-key-gw_guideline_table .gw-legend-active {background:#e5f4ec; color:#258457;}
+.st-key-gw_guideline_table .gw-legend-inactive {background:#edf0f3; color:#667889;}
+.st-key-gw_guideline_table [class*="st-key-gw_sort_"] button {
+  border:0 !important; background:var(--gw-surface-muted) !important;
+  color:var(--gw-brand) !important; border-radius:6px !important;
+  min-height:38px !important; padding:6px 4px !important;
+  font-size:12px !important; font-weight:700 !important;
+}
+.st-key-gw_guideline_table [class*="st-key-gw_sort_"] button:hover {
+  background:var(--gw-accent-soft) !important; color:var(--gw-accent) !important;
+}
+.st-key-gw_guideline_table [data-testid="stDataFrame"] {
+  border:1px solid var(--gw-border); border-radius:8px; overflow:hidden;
+}
+
+
+/* Side-by-side Guidelines workspace: right-side editor always available.
+   Only the table scrolls internally. Active/inactive row colors are retained. */
+.st-key-gw_guideline_editor_slot {
+  position: sticky;
+  /* Do not let the sidebar editor disappear behind the fixed navbar. */
+  top: calc(var(--gw-nav-height) + 14px);
+  align-self: flex-start;
+  max-height: calc(100vh - var(--gw-nav-height) - 28px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.st-key-gw_guideline_editor_slot .st-key-gw_guideline_editor_panel {
+  margin: 0;
+  padding: 20px 18px;
+  background: white;
+}
+.st-key-gw_guideline_editor_slot .st-key-gw_guideline_editor_panel [data-testid="stForm"] {
+  border: 0;
+  padding: 0;
+}
+.st-key-gw_guideline_editor_slot .st-key-gw_guideline_editor_panel label {
+  font-size: 12px;
+}
+/* For narrow screens the panel stacks below the table instead of sticking. */
+@media (max-width: 960px) {
+  .st-key-gw_guideline_editor_slot {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+/* Guidelines V4.1 — moderately compact search/sort controls.
+   Only the left Guidelines listing is affected; not the right-side editor. */
+.st-key-gw_guideline_table {
+  padding: 18px 20px 16px;
+}
+.st-key-gw_guideline_table .gw-panel-sub {
+  margin: 3px 0 3px;
+  line-height: 1.45;
+}
+.st-key-gw_guideline_table .gw-status-legend {
+  min-height: 32px;
+  align-items: center;
+}
+.st-key-gw_guideline_table :is([data-testid="stMultiSelect"], [data-testid="stSelectbox"]) label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gw-brand);
+}
+.st-key-gw_guideline_table [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+.st-key-gw_guideline_table [data-testid="stSelectbox"] [data-baseweb="select"] > div {
+  min-height: 40px;
+  border-radius: 8px;
+}
+.st-key-gw_guideline_table .gw-table-foot {
+  margin-top: 12px;
+}
+@media (max-width: 850px) {
+  .st-key-gw_guideline_table { padding: 16px 14px; }
+  .st-key-gw_guideline_table .gw-status-legend { min-height: 0; }
+}
+
+/* V4.6 — Inline overview counts, no stand-alone summary card. */
+.st-key-gw_guideline_table .gw-panel-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 12px;
+  min-width: 0;
+}
+.st-key-gw_guideline_table .gw-covered-count {
+  color: var(--gw-muted);
+  background: var(--gw-surface-muted);
+  border: 1px solid var(--gw-border);
+  border-radius: 18px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 4px 9px;
+  font-variant-numeric: tabular-nums;
+}
+.st-key-gw_guideline_table .gw-status-legend {
+  gap: 7px;
+}
+.st-key-gw_guideline_table .gw-status-legend .gw-legend {
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 5px 9px;
+}
+.st-key-gw_guideline_table .gw-legend strong {
+  margin-left: 5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+/* The Add New Guideline button remains aligned with the listing's top edge. */
+.st-key-gw_add_guideline button { width: 100%; }
+.st-key-gw_guideline_editor_slot .st-key-gw_guideline_editor_panel { margin-top: 0; }
+@media (max-width: 1200px) {
+  .st-key-gw_guideline_table .gw-status-legend .gw-legend { font-size: 10px; padding: 4px 7px; }
+  .st-key-gw_guideline_table .gw-covered-count { font-size: 10px; }
+}
+@media (max-width: 700px) {
+  .st-key-gw_guideline_table .gw-status-legend { justify-content: flex-start; }
+  .st-key-gw_guideline_table .gw-status-legend .gw-legend { white-space: normal; }
+}
+
+/* V4.4 — Legend aligned to the right of the Pricing Guidelines heading. */
+@media (max-width: 700px) {
+  .st-key-gw_guideline_table .gw-status-legend {
+    gap: 5px;
+  }
+  .st-key-gw_guideline_table .gw-legend {
+    padding: 3px 7px; font-size: 11px;
+  }
+}

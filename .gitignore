@@ -1,0 +1,30 @@
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local credentials (NEVER upload these through the website)
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+*.pem
+*.key
+
+# Local development and packaging
+.DS_Store
+.idea/
+.vscode/
+build/
+dist/
+*.app/
+*.spec
+*.egg-info/
+.git/

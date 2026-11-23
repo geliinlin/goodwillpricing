@@ -1,0 +1,33 @@
+# Local Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Git and editor state
+.git/
+.github/
+.idea/
+.vscode/
+.DS_Store
+
+# Secrets: never copy these into the Docker image
+.streamlit/secrets.toml
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local build outputs
+build/
+dist/
+*.app
+*.spec
+
+# Local artifacts and archives
+*.zip
+*.sqlite
+*.db

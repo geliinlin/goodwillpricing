@@ -1,0 +1,66 @@
+/* Dashboard, History, Reprint and admin placeholder content. */
+.gw-eyebrow { color:var(--gw-accent); font-weight:750; font-size:11px;
+    text-transform:uppercase; letter-spacing:.045em; margin-bottom:8px; }
+.gw-page-title { font-size:33px; color:var(--gw-brand); font-weight:750;
+    line-height:1.2; margin:0 0 8px; letter-spacing:-.028em; }
+.gw-page-description { color:var(--gw-muted); font-size:15px; margin-bottom:22px; }
+.gw-section-title { color:var(--gw-brand); font-size:20px; font-weight:700;
+    margin:21px 0 14px; }
+.gw-kpi { background:var(--gw-surface); border:1px solid var(--gw-border); border-radius:12px;
+    padding:24px; min-height:136px; box-shadow:0 1px 2px rgba(23,52,76,.03); }
+.gw-kpi-marker { color:var(--gw-accent); font-size:11px; font-weight:700; margin-bottom:10px; }
+.gw-kpi-value { font-size:32px; line-height:1.1; font-weight:750; color:var(--gw-brand); }
+.gw-kpi-label { margin-top:8px; color:var(--gw-muted); font-size:13px; }
+.gw-action-head { display:flex; gap:14px; align-items:center; padding:4px 0 7px; }
+.gw-action-symbol { border-radius:10px; background:var(--gw-accent-soft);
+    width:44px;height:44px;display:flex;align-items:center;
+    justify-content:center;font-size:20px;color:var(--gw-accent); }
+.gw-action-title { font-size:16px; font-weight:700; color:var(--gw-brand); }
+.gw-action-desc { color:var(--gw-muted); font-size:13px; line-height:1.5; min-height:42px; }
+.st-key-gw_action_admin_1,
+.st-key-gw_action_admin_2,
+.st-key-gw_action_admin_3,
+.st-key-gw_action_admin_4,
+.st-key-gw_action_staff_history,
+.st-key-gw_action_staff_reprint,
+.st-key-gw_action_staff_users {
+    background:var(--gw-surface); border-radius:12px; border:1px solid var(--gw-border);
+    padding:19px 21px 16px; min-height:192px;
+}
+.gw-pricing-hero { background:var(--gw-accent-soft); border:1px solid var(--gw-accent-border);
+    padding:26px 28px; border-radius:12px; }
+.gw-hero-title {font-size:23px; font-weight:750; color:var(--gw-brand); margin-bottom:5px;}
+.gw-hero-desc {font-size:14px; color:var(--gw-muted); line-height:1.55;}
+.gw-steps {display:flex;align-items:center;gap:2px; padding-top:17px;padding-bottom:10px;}
+.gw-step {flex:1; position:relative; text-align:center; min-width:0;}
+.gw-step::before {content:""; border-top:2px solid var(--gw-border);
+    position:absolute; left:-50%;top:14px;width:100%; z-index:0;}
+.gw-step:first-child::before {display:none;}
+.gw-step-dot {position:relative;z-index:1;display:inline-flex;width:30px;height:30px;
+    border-radius:50%;background:var(--gw-surface);color:var(--gw-muted);border:1px solid var(--gw-border);
+    justify-content:center;align-items:center;font-size:13px;font-weight:700;}
+.gw-step:first-child .gw-step-dot {background:var(--gw-accent);color:var(--gw-surface);border-color:var(--gw-accent);}
+.gw-step-label {font-size:11px;color:var(--gw-muted);margin:9px auto 0; max-width:125px;}
+.gw-activity { background:var(--gw-surface); border:1px solid var(--gw-border); border-radius:12px;
+    overflow:hidden; margin-top:4px; }
+.gw-activity-row { display:grid; grid-template-columns: minmax(170px, 2fr) minmax(110px,1fr)
+    minmax(85px,.9fr) minmax(90px,.9fr); gap:16px; align-items:center;
+    padding:15px 21px; border-bottom:1px solid var(--gw-border); }
+.gw-activity-row:last-child { border-bottom:none; }
+.gw-activity-head {background:var(--gw-surface-muted);color:var(--gw-muted);font-weight:700;font-size:11px;
+    text-transform:uppercase;letter-spacing:.025em;}
+.gw-activity-main {color:var(--gw-brand);font-size:13px;font-weight:650;line-height:1.4;}
+.gw-activity-sub {color:var(--gw-muted);font-size:11px;margin-top:2px;}
+.gw-activity-cell {font-size:12px;color:var(--gw-muted);}
+.gw-activity-price {font-size:14px;font-weight:750;color:var(--gw-brand);}
+.gw-empty {background:var(--gw-surface);border:1px solid var(--gw-border);border-radius:12px;
+    padding:27px 23px;color:var(--gw-muted);font-size:14px;}
+.gw-footer { display:flex;justify-content:space-between;color:var(--gw-muted);
+    font-size:12px;margin-top:55px;border-top:1px solid var(--gw-border);padding-top:19px; }
+
+@media (max-width: 850px) {
+  .gw-activity-row {grid-template-columns:1.7fr 1fr 1fr;gap:7px;}
+  .gw-activity-row > :nth-child(2) {display:none;}
+  .gw-page-title {font-size:27px;}
+  .gw-step-label {font-size:9px;}
+}
