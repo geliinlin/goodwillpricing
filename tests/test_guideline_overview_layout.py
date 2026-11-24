@@ -17,7 +17,10 @@ class GuidelineOverviewLayoutTests(unittest.TestCase):
                     and n.name == 'show_guideline_management')
         segment = ast.get_source_segment(self.source, page)
         self.assertIn('st.columns([3.1, 1.2]', segment)
-        self.assertLess(segment.index('_table(rows)'), segment.index('key="gw_add_guideline"'))
+        self.assertLess(
+            segment.index('key="gw_add_guideline"'),
+            segment.index('_table(rows)')
+        )
         self.assertNotIn('_summary_panel', self.source)
         self.assertNotIn('gw_guideline_summary', self.source)
         self.assertNotIn('Guideline Overview', self.source)

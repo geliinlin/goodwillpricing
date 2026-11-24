@@ -21,7 +21,7 @@ ORDER = (
     '001_user_management_access.sql', '002_account_email_recovery.sql',
     '003_master_data_management.sql', '004_preflight_read_only.sql',
     '004_category_item_type.sql', '005_seed_item_types_categories.sql',
-    '006_master_descriptions.sql',
+    '006_master_descriptions.sql', '007_add_decision_branch.sql', '008_align_g3_staff_role.sql',
 )
 
 
@@ -30,34 +30,47 @@ def docker(*args, **kwargs):
                           stdout=subprocess.PIPE, **kwargs).stdout.strip()
 
 
-def seed(conn, password):
+def seed(conn, password, *, branch_snapshot=True, staff_role='Store Staff'):
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt(4)).decode()
     with conn.cursor() as cur:
         for uid, role, username, active in [
-            (1, 'Administrator', 'admin_e2e', 1), (2, 'Store Staff', 'staff_e2e', 1),
-            (3, 'Store Staff', 'other_e2e', 1), (4, 'Store Staff', 'inactive_e2e', 0)
+            (1, 'Administrator', 'admin_e2e', 1), (2, staff_role, 'staff_e2e', 1),
+            (3, staff_role, 'other_e2e', 1), (4, staff_role, 'inactive_e2e', 0)
         ]:
-            cur.execute('INSERT INTO USER_ACCOUNT VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
+            cur.execute('''INSERT INTO USER_ACCOUNT
+                        (User_Id,User_First_Name,User_Last_Name,User_Username,User_Email,
+                         User_Password_Hash,User_Is_Active,User_Type) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)''',
                         (uid, 'Fixture', username, username, f'{username}@example.invalid',
                          password_hash, active, role))
         cur.execute('INSERT INTO ADMINISTRATOR VALUES (1)')
-        cur.execute("""INSERT INTO BRANCH (Branch_Id,Branch_Name,Branch_City)
-                       VALUES (1,'Test North','Test North'),(2,'Test South','Test South')""")
+        cur.execute("""INSERT INTO BRANCH (Branch_Id,Branch_Name,Branch_City,Branch_Street,Branch_State,Branch_Zip)
+                       VALUES (1,'Test North','Test North','1 Test St','MI','48801'),
+                              (2,'Test South','Test South','2 Test St','MI','48802')""")
         cur.execute('INSERT INTO STORE_STAFF VALUES (2,1),(3,2),(4,1)')
         cur.execute("""INSERT INTO BRAND (Brand_Id,Brand_Name,Brand_Description)
                        VALUES (1,'Generic','Standard brand tier')""")
         cur.execute("""INSERT INTO ITEM_CONDITION (Condition_Id,Condition_Name,Condition_Description)
                        VALUES (1,'Good','Gently used')""")
-        cur.execute("""INSERT INTO PRICING_GUIDELINE VALUES
+        cur.execute("""INSERT INTO PRICING_GUIDELINE (Guideline_Id,Item_Type_Id,Category_Id,Brand_Id,Condition_Id,
+                       Guideline_Suggested_Price,Guideline_Is_Active,Guideline_Last_Updated,Admin_Id) VALUES
                        (1,1,1,1,1,12.50,1,NOW(),1),(2,1,1,1,1,4.50,0,NOW(),1)""")
         cur.execute("""INSERT INTO ITEM VALUES (1,'Other fixture item',CURDATE(),1,1,1,1)""")
-        cur.execute("""INSERT INTO PRICING_DECISION VALUES
-                       (1,NOW(),NULL,12.50,'TS26-100001',1,3,1)""")
+        columns = 'Decision_Id, Decision_Datetime, Decision_Reason, Decision_Final_Price, Decision_Tag_Number, Guideline_Id, Staff_Id, Item_Id'
+        values = "1,NOW(),NULL,12.50,'TS26-100001',1,3,1"
+        if branch_snapshot:
+            columns += ', Decision_Branch_Id'
+            values += ', 2'
+        cur.execute(f'INSERT INTO PRICING_DECISION ({columns}) VALUES ({values})')
     conn.commit()
 
 
 @contextmanager
 def fixture():
+    if os.environ.get('GW_TEST_ENGINE') == 'mysql':
+        from mysql_fixture import mysql_fixture
+        with mysql_fixture() as isolated:
+            yield isolated
+        return
     schema = 'gw_test_' + secrets.token_hex(8)
     name = schema.replace('_', '-')
     password = secrets.token_urlsafe(24)
@@ -89,7 +102,7 @@ def fixture():
                 if (selected != schema or 'MariaDB' not in version or
                         not account.startswith('gw_fixture@') or cur.fetchall()):
                     raise RuntimeError('Expected empty isolated MariaDB schema')
-            for file in [HERE / 'workflow_base.sql', *(MIGRATIONS / n for n in ORDER)]:
+            for file in [HERE / 'workflow_base.sql.in', *(MIGRATIONS / n for n in ORDER)]:
                 docker('exec', '-i', name, 'sh', '-c',
                        'export MYSQL_PWD="$MARIADB_PASSWORD"; exec mariadb --user="$MARIADB_USER" --database="$MARIADB_DATABASE"',
                        input=file.read_text())

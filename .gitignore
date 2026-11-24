@@ -19,6 +19,7 @@ htmlcov/
 *.key
 
 # Local development and packaging
+.desktop_build/
 .DS_Store
 .idea/
 .vscode/

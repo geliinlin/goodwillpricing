@@ -80,7 +80,7 @@ class ReportDataTests(unittest.TestCase):
         self.assertIn('Guideline_Suggested_Price', con.statements[2][0])
         self.assertIn('GROUP BY c.Category_Id', con.statements[3][0])
         self.assertIn('GROUP BY reason', con.statements[4][0])
-        self.assertNotIn('AND ss.Branch_Id = %s', con.statements[2][0])
+        self.assertNotIn('AND d.Decision_Branch_Id = %s', con.statements[2][0])
         self.assertTrue(all(c.options['buffered'] for c in con.cursors))
         self.assertTrue(all(c.closed for c in con.cursors))
         self.assertTrue(con.closed)
@@ -92,7 +92,7 @@ class ReportDataTests(unittest.TestCase):
                                         today=date(2026, 11, 22))
         self.assertEqual(snap['branch_name'], 'Lansing')
         for sql, params in con.statements[2:]:
-            self.assertIn('AND ss.Branch_Id = %s', sql)
+            self.assertIn('AND d.Decision_Branch_Id = %s', sql)
             self.assertEqual(params[-1], 2)
             self.assertNotIn('Branch_Id = 2', sql)
 
@@ -184,7 +184,7 @@ class NewReportFilterTests(unittest.TestCase):
         expected = (datetime(2026,11,1), datetime(2026,11,23), 2, 9, 4, 3)
         for sql, params in con.statements[2:]:
             self.assertEqual(params, expected)
-            self.assertIn('AND ss.Branch_Id = %s',sql)
+            self.assertIn('AND d.Decision_Branch_Id = %s',sql)
             self.assertIn('AND d.Staff_Id = %s',sql)
             self.assertIn('AND i.Category_Id = %s',sql)
             self.assertIn('AND i.Item_Type_Id = %s',sql)

@@ -193,7 +193,7 @@ def probe_connection(values: dict) -> bool:
         import mysql.connector
         opts = {k: values[k] for k in ("host", "port", "user", "password", "database")}
         if values.get("ssl_ca"):
-            opts["ssl_ca"] = values["ssl_ca"]
+            opts.update(ssl_ca=values["ssl_ca"], ssl_verify_cert=True, ssl_verify_identity=True)
         conn = mysql.connector.connect(**opts, connection_timeout=6)
         try:
             cursor = conn.cursor()

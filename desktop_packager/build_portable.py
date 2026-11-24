@@ -15,7 +15,7 @@ import tomllib
 from pathlib import Path
 
 SKIP_DIRS = {".git", ".idea", ".venv", "venv", "__pycache__", "tests", "scripts",
-             "migrations", ".desktop_build", "dist", "build", "desktop_packager", ".pytest_cache",
+             "test-results", "migrations", ".desktop_build", "dist", "build", "desktop_packager", ".pytest_cache",
              ".mypy_cache", ".ruff_cache", ".codex", "node_modules"}
 SKIP_SUFFIX = {".db", ".sqlite", ".sqlite3", ".key", ".p12", ".pfx", ".sql",
                ".log", ".zip", ".tar", ".gz", ".bak", ".pyc", ".xlsx", ".xls", ".csv"}
@@ -33,6 +33,8 @@ def safe_files(project: Path):
             continue
         if any(part.startswith(".") and part != ".streamlit" for part in relative.parts[:-1]):
             continue
+        if relative.name.lower().startswith((".env.", ".goodwill-config-")):
+            continue
         if relative.name.lower() in SKIP_FILES or "secret" in relative.name.lower():
             continue
         # Exclude development/maintenance tools from the shipped executable.
@@ -42,6 +44,8 @@ def safe_files(project: Path):
             or not relative.stem.isidentifier()
         ):
             continue
+        if relative.name == "ca.pem" and b"PRIVATE KEY" in path.read_bytes():
+            raise SystemExit("ca.pem contains private key material")
         if relative.suffix.lower() not in KEEP_SUFFIX:
             if relative.name != "ca.pem":
                 continue
@@ -87,6 +91,14 @@ def validate_team_profile(packager: Path) -> None:
         parsed = tomllib.loads(path.read_text(encoding="utf-8"))
     except (ValueError, OSError) as exc:
         raise SystemExit("Invalid team_profile.toml") from exc
+    example_path = packager / "template" / "secrets.toml.example"
+    example = tomllib.loads(example_path.read_text(encoding="utf-8"))
+    credentials = example.get("mysql", {})
+    if (set(example) - {"mysql", "app"} or
+            set(credentials) - {"host", "port", "database", "user", "password", "ssl_ca"} or
+            set(example.get("app", {})) - {"base_url"} or
+            any(not str(credentials.get(k, "")).startswith("REPLACE_") for k in ("user", "password"))):
+        raise SystemExit("The distributed example must contain placeholder credentials only")
     if set(parsed) - {"mysql", "app"}:
         raise SystemExit("Team profile cannot include additional sections")
     mysql = parsed.get("mysql", {})
@@ -114,8 +126,9 @@ def build(project: Path, inspect_only: bool = False) -> None:
     if not installed("streamlit"):
         raise SystemExit("Streamlit missing from this Python. Activate the project's .venv first.")
     sep = ";" if os.name == "nt" else ":"
-    data_args = ["--add-data", f"{stage}{sep}goodwill_app",
-                 "--add-data", f"{packager / 'template'}{sep}template"]
+    data_args = ["--add-data", f"{stage}{sep}goodwill_app"]
+    for name in ("team_profile.toml", "secrets.toml.example"):
+        data_args.extend(["--add-data", f"{packager / 'template' / name}{sep}template"])
     opts = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--windowed",
             "--name", "GoodwillPricing", "--distpath", str(work / "dist"),
             "--workpath", str(work / "pyinstaller_work"), "--specpath", str(work / "spec"),

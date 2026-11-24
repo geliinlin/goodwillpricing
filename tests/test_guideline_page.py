@@ -89,6 +89,12 @@ class GuidelinePageTests(unittest.TestCase):
         self.assertEqual(grid.data.columns.tolist(),
                          ['No.', 'Item Type', 'Category', 'Brand Tier', 'Condition', 'Suggested Price'])
 
+    def test_grid_selection_is_reset_after_another_admin_adds_a_version(self):
+        page._table(self.rows)
+        first = self.ui.grid_events[-1][1]['key']
+        page._table([dict(ROW, Guideline_Id=9), *self.rows])
+        self.assertNotEqual(first, self.ui.grid_events[-1][1]['key'])
+
     def test_column_value_filter_removes_nonmatching_rows(self):
         self.ui.selects['gw_filter_type'] = ['Furniture']
         page._table(self.rows)

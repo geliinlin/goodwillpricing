@@ -63,7 +63,8 @@ def _verify_user(conn: Any, user: Mapping[str, Any]) -> tuple[str, int]:
            FROM USER_ACCOUNT AS u
            LEFT JOIN ADMINISTRATOR AS a ON a.Admin_Id = u.User_Id
            LEFT JOIN STORE_STAFF AS s ON s.Staff_Id = u.User_Id
-           WHERE u.User_Id = %s AND (
+           LEFT JOIN USER_PASSWORD_STATE AS ps ON ps.User_Id = u.User_Id
+           WHERE u.User_Id = %s AND COALESCE(ps.Must_Change_Password, 0) = 0 AND (
                u.User_Type = 'Administrator' OR EXISTS (
                    SELECT 1 FROM BRANCH AS b
                    WHERE b.Branch_Id = s.Branch_Id AND b.Branch_Is_Active = 1
@@ -149,13 +150,13 @@ def _recent_rows(conn: Any, *, staff_id: int | None, limit: int) -> list[dict]:
                    c.Category_Name AS category,
                    u.User_First_Name AS first_name,
                    u.User_Last_Name AS last_name,
-                   b.Branch_Name AS branch_name
+                   COALESCE(b.Branch_Name, 'Unknown') AS branch_name
             FROM PRICING_DECISION AS d
             JOIN ITEM AS i ON i.Item_Id = d.Item_Id
             JOIN CATEGORY AS c ON c.Category_Id = i.Category_Id
             JOIN PRICING_GUIDELINE AS g ON g.Guideline_Id = d.Guideline_Id
             JOIN STORE_STAFF AS ss ON ss.Staff_Id = d.Staff_Id
-            JOIN BRANCH AS b ON b.Branch_Id = ss.Branch_Id
+            LEFT JOIN BRANCH AS b ON b.Branch_Id = d.Decision_Branch_Id
             JOIN USER_ACCOUNT AS u ON u.User_Id = d.Staff_Id
             {where}
             ORDER BY d.Decision_Datetime DESC, d.Decision_Id DESC
@@ -197,8 +198,8 @@ def get_reprint_receipt(user: Mapping[str, Any], tag_number: str,
                       b.Brand_Name AS brand,
                       ic.Condition_Name AS `condition`,
                       it.Item_Type_Name AS item_type,
-                      ss.Branch_Id AS branch_id,
-                      br.Branch_Name AS branch_name
+                      d.Decision_Branch_Id AS branch_id,
+                      COALESCE(br.Branch_Name, 'Unknown') AS branch_name
                FROM PRICING_DECISION AS d
                JOIN ITEM AS i ON i.Item_Id = d.Item_Id
                JOIN CATEGORY AS c ON c.Category_Id = i.Category_Id
@@ -206,7 +207,7 @@ def get_reprint_receipt(user: Mapping[str, Any], tag_number: str,
                JOIN ITEM_CONDITION AS ic ON ic.Condition_Id = i.Condition_Id
                JOIN ITEM_TYPE AS it ON it.Item_Type_Id = i.Item_Type_Id
                JOIN STORE_STAFF AS ss ON ss.Staff_Id = d.Staff_Id
-               JOIN BRANCH AS br ON br.Branch_Id = ss.Branch_Id
+               LEFT JOIN BRANCH AS br ON br.Branch_Id = d.Decision_Branch_Id
                WHERE d.Decision_Tag_Number = %s AND d.Staff_Id = %s
                LIMIT 1""",
             (tag_number, user_id),
@@ -228,11 +229,13 @@ def _history_positive_id(value, field: str) -> int | None:
     return value
 
 
+UNKNOWN_BRANCH = "unknown"
+
+
 def get_history_filter_options(user: Mapping[str, Any], factory=None) -> dict:
     """Actual history values only, with server-side role/employee verification.
 
-    Branch is the employee's CURRENT assignment; legacy decisions have no
-    captured branch at submission time. Inactive staff/categories are included
+    Historical branch comes from the decision snapshot. Inactive staff/categories are included
     if they appear in pricing history.
     """
     with _connection(factory) as conn:
@@ -243,7 +246,7 @@ def get_history_filter_options(user: Mapping[str, Any], factory=None) -> dict:
                    JOIN ITEM AS i ON i.Item_Id = d.Item_Id
                    JOIN CATEGORY AS c ON c.Category_Id = i.Category_Id
                    JOIN STORE_STAFF AS ss ON ss.Staff_Id = d.Staff_Id
-                   JOIN BRANCH AS b ON b.Branch_Id = ss.Branch_Id
+                   LEFT JOIN BRANCH AS b ON b.Branch_Id = d.Decision_Branch_Id
                    JOIN USER_ACCOUNT AS u ON u.User_Id = d.Staff_Id'''
         categories = _fetchall(conn,
             f'''SELECT DISTINCT c.Category_Id AS id,
@@ -255,7 +258,7 @@ def get_history_filter_options(user: Mapping[str, Any], factory=None) -> dict:
             result['branches'] = _fetchall(conn,
                 f'''SELECT DISTINCT b.Branch_Id AS id,
                            b.Branch_Name AS name
-                    {joins} ORDER BY b.Branch_Name, b.Branch_Id''')
+                    {joins} WHERE d.Decision_Branch_Id IS NOT NULL ORDER BY b.Branch_Name, b.Branch_Id''')
             result['staff'] = _fetchall(conn,
                 f'''SELECT DISTINCT d.Staff_Id AS id,
                            u.User_First_Name AS first_name,
@@ -267,7 +270,7 @@ def get_history_filter_options(user: Mapping[str, Any], factory=None) -> dict:
 def get_filtered_history(
     user: Mapping[str, Any], *, keyword: str = '',
     days: int | None = None, start_date=None, end_date=None,
-    category_id: int | None = None, branch_id: int | None = None,
+    category_id: int | None = None, branch_id: int | str | None = None,
     staff_id: int | None = None, price_change: str = 'All',
     limit: int = 200, factory=None,
 ) -> list[dict]:
@@ -283,7 +286,8 @@ def get_filtered_history(
         raise ValueError('Invalid history limit')
     limit = min(limit, 500)
     category_id = _history_positive_id(category_id, 'category')
-    branch_id = _history_positive_id(branch_id, 'branch')
+    if branch_id != UNKNOWN_BRANCH:
+        branch_id = _history_positive_id(branch_id, 'branch')
     staff_id = _history_positive_id(staff_id, 'staff')
     if days is not None and (type(days) is not int or days not in (7, 30, 90)):
         raise ValueError('Invalid date period')
@@ -311,9 +315,10 @@ def get_filtered_history(
         elif staff_id is not None:
             conditions.append('d.Staff_Id = %s')
             params.append(staff_id)
-        if branch_id is not None:
-            # Older decisions do not store branch at time of pricing.
-            conditions.append('ss.Branch_Id = %s')
+        if branch_id == UNKNOWN_BRANCH:
+            conditions.append('d.Decision_Branch_Id IS NULL')
+        elif branch_id is not None:
+            conditions.append('d.Decision_Branch_Id = %s')
             params.append(branch_id)
         if category_id is not None:
             conditions.append('i.Category_Id = %s')
@@ -348,13 +353,13 @@ def get_filtered_history(
                        c.Category_Name AS category,
                        u.User_First_Name AS first_name,
                        u.User_Last_Name AS last_name,
-                       b.Branch_Name AS branch_name
+                       COALESCE(b.Branch_Name, 'Unknown') AS branch_name
                 FROM PRICING_DECISION AS d
                 JOIN ITEM AS i ON i.Item_Id = d.Item_Id
                 JOIN CATEGORY AS c ON c.Category_Id = i.Category_Id
                 JOIN PRICING_GUIDELINE AS g ON g.Guideline_Id = d.Guideline_Id
                 JOIN STORE_STAFF AS ss ON ss.Staff_Id = d.Staff_Id
-                JOIN BRANCH AS b ON b.Branch_Id = ss.Branch_Id
+                LEFT JOIN BRANCH AS b ON b.Branch_Id = d.Decision_Branch_Id
                 JOIN USER_ACCOUNT AS u ON u.User_Id = d.Staff_Id
                 {where}
                 ORDER BY d.Decision_Datetime DESC, d.Decision_Id DESC

@@ -33,4 +33,6 @@ Never upload `.streamlit/secrets.toml`, `.env`, database credentials, private ke
 
 ## Deployment
 
+Apply the numbered database migrations through 008 before starting this application version. Run the 004 read-only preflight before the 004 category migration. Migration 007 records the store for new pricing decisions. Migration 008 aligns the original G3 employee role with the application. Pause earlier application writers during the cutover. The [integrity test report](test-results/final-integrity/REPORT.md) documents the tested schema and migration order.
+
 The GitHub repository stores source code; it does not automatically host a running Streamlit application. A deployment service must also be configured, including protected database credentials and network access to the MySQL server.

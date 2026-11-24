@@ -195,6 +195,18 @@ class ItemSearchPageTests(unittest.TestCase):
             save.assert_called_once()
         self.assertEqual(self.ui.session_state[page.RECEIPT_KEY]["tag_number"], "MP26-100012")
 
+    def test_superseded_quote_requires_new_search_and_keeps_item_inputs(self):
+        self.prepare_submission("coat")
+        failure = page.StalePricingDraftError("Search Guidelines again.")
+        with patch.object(page, "save_pricing_decision", side_effect=failure) as save:
+            page._item_form(STAFF, LOOKUPS, 5)
+            page._item_form(STAFF, LOOKUPS, 5)
+        save.assert_called_once()
+        self.assertNotIn(page.DRAFT_KEY, self.ui.session_state)
+        self.assertNotIn(page.RESULT_KEY, self.ui.session_state)
+        self.assertIn(str(failure), self.ui.warnings)
+        self.assertEqual(self.ui.inputs["module3_description"], "coat")
+
     def test_known_rollback_leaves_draft_available_for_retry(self):
         self.prepare_submission("coat")
         failure = page.PricingSaveError("inserting ITEM", RuntimeError())
@@ -235,6 +247,22 @@ class ItemSearchPageTests(unittest.TestCase):
             page._item_form(STAFF, LOOKUPS, 5)
         self.assertEqual(query.call_args.args[1], (1, 2, 3, 4))
         self.assertEqual(self.ui.reruns, 1)
+
+    def test_uncertain_save_blocks_pricing_until_writer_reconciles(self):
+        key = page.P + 'pending_save'
+        self.ui.session_state[key] = (5, 'MP26-100012')
+        with patch.object(page, 'get_authenticated_store_staff', return_value=STAFF), \
+             patch.object(page, 'get_lookup_options', return_value=LOOKUPS), \
+             patch.object(page, '_item_form') as form, \
+             patch.object(page, 'submitted_tag_exists', side_effect=[OSError(), True, False]):
+            page.render_item_search_page(show_header=False)
+            self.assertIn(key, self.ui.session_state)
+            form.assert_not_called()
+            page.render_item_search_page(show_header=False)
+            form.assert_not_called()
+            page.render_item_search_page(show_header=False)
+            form.assert_called_once()
+        self.assertNotIn(key, self.ui.session_state)
 
 
 if __name__ == "__main__":

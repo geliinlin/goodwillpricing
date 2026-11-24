@@ -51,7 +51,8 @@ def get_config():
             ca_file = Path(__file__).resolve().parent / ca_file
         if not ca_file.is_file():
             raise RuntimeError("MySQL CA certificate file is missing. Download the Aiven CA certificate as ca.pem in the project root.")
-        config["ssl_ca"] = str(ca_file)
+        config.update(ssl_ca=str(ca_file), ssl_disabled=False,
+                      ssl_verify_cert=True, ssl_verify_identity=True)
     config.setdefault("connection_timeout", 7)
     config.setdefault("charset", "utf8mb4")
     config.setdefault("autocommit", False)

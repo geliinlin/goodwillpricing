@@ -170,7 +170,7 @@ def _table(rows):
             with column:
                 if st.button(label + suffix, key=f'gw_sort_{key}',
                              help=f'Sort by {label}. Click again for descending; a third time removes it.',
-                             use_container_width=True):
+                             width="stretch"):
                     st.session_state['gw_guideline_sorts'] = next_sort(sorts, key)
                     st.rerun()
 
@@ -240,14 +240,16 @@ def _table(rows):
             return [f'background-color: {shade}' for _ in table_row]
 
         styler = frame.style.apply(color_row, axis=1).format({'Suggested Price': '${:,.2f}'})
-        # A filter/sort change creates a fresh grid so a previous position
-        # can never select a different guideline after a rerun.
-        grid_state = json.dumps({'filters': selected, 'status': status_filter, 'sorts': sorts}, sort_keys=True)
+        # Streamlit returns row positions. Reset selection if their identities change.
+        grid_state = json.dumps({
+            'filters': selected, 'status': status_filter, 'sorts': sorts,
+            'ids': [int(row['Guideline_Id']) for row in visible],
+        }, sort_keys=True)
         grid_key = 'gw_guideline_grid_' + hashlib.sha256(grid_state.encode()).hexdigest()[:12]
         event = st.dataframe(
             styler, key=grid_key, hide_index=True,
             on_select='rerun', selection_mode='single-row',
-            use_container_width=True,
+            width="stretch",
             height=min(650, 42 * len(visible) + 43),
             column_config={
                 'No.': st.column_config.NumberColumn('No.', format='%d', width='small'),
@@ -312,10 +314,9 @@ def _editor(user, lookups, rows):
             epoch = st.session_state.get("gw_guideline_epoch", 0)
             prefix = f"gw_form_{selection}_{epoch}"
             initial_row = snapshot if editing else None
-            with st.form(prefix):
-                attributes, price, active = _fields(lookups, prefix, initial_row, compact=True)
-                save = st.form_submit_button("Save Guideline", type="primary")
-            if save:
+            # The category list must rerender when Item Type changes.
+            attributes, price, active = _fields(lookups, prefix, initial_row, compact=True)
+            if st.button("Save Guideline", type="primary"):
                 try:
                     saved_id = save_guideline(
                         user, attributes, price, active,
@@ -361,11 +362,19 @@ def show_guideline_management(user, show_header: bool = True):
         return
 
     with st.container(key="gw_guideline_content"):
-        st.html('''
-        <div class="gw-eyebrow">CORPORATE ADMIN</div>
-        <div class="gw-page-title">Guideline management</div>
-        <div class="gw-page-subtitle">Consistent pricing starts with clear, up-to-date guidelines.</div>
-        ''')
+        with st.container(key="gw_guideline_page_header"):
+            heading_col, action_col = st.columns([4, 1], gap="large", vertical_alignment="center")
+            with heading_col:
+                st.html('''
+                <div class="gw-eyebrow">CORPORATE ADMIN</div>
+                <div class="gw-page-title">Guideline management</div>
+                <div class="gw-page-subtitle">Consistent pricing starts with clear, up-to-date guidelines.</div>
+                ''')
+            with action_col:
+                if st.button("＋  Add New Guideline", key="gw_add_guideline", type="primary", width="stretch"):
+                    st.session_state["gw_guideline_editor"] = "new"
+                    st.session_state.pop("gw_guideline_snapshot", None)
+                    st.rerun()
 
         active = [r for r in rows if r["Guideline_Is_Active"]]
         counts = Counter(tuple(r[f] for f in ATTRIBUTE_FIELDS) for r in active)
@@ -382,10 +391,6 @@ def show_guideline_management(user, show_header: bool = True):
                 )
             _table(rows)
         with right:
-            if st.button("＋  Add New Guideline", key="gw_add_guideline", type="primary", use_container_width=True):
-                st.session_state["gw_guideline_editor"] = "new"
-                st.session_state.pop("gw_guideline_snapshot", None)
-                st.rerun()
             with st.container(key="gw_guideline_editor_slot"):
                 _editor(user, lookups, rows)
 

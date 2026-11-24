@@ -31,7 +31,7 @@ class HistoryFilterSecurityTests(unittest.TestCase):
             price_change='Override', limit=200, factory=lambda: conn)
         self.assertEqual(result, [{'decision_id': 12}])
         sql, params = conn.statements[-1]
-        for expected in ('ss.Branch_Id = %s', 'd.Staff_Id = %s',
+        for expected in ('d.Decision_Branch_Id = %s', 'd.Staff_Id = %s',
                          'i.Category_Id = %s', 'Decision_Tag_Number LIKE %s',
                          'd.Decision_Reason AS override_reason',
                          'Decision_Final_Price <> g.Guideline_Suggested_Price',

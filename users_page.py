@@ -233,7 +233,7 @@ def _edit_profile_panel(actor: dict, account: dict, branches: list[dict], users:
         if account['User_Type'] == ROLE_ADMIN:
             st.caption('Assigned Branch: Corporate / All Branches (not editable for Administrators).')
         if account['User_Type'] == ROLE_STAFF:
-            st.caption('Moving a staff member to another branch can change historical branch attribution in Reports.')
+            st.caption('The new branch applies to future pricing decisions.')
         matches = find_account_duplicates(users, first_name=first,
             last_name=last, username=username, email=email, exclude_user_id=uid)
         safe_to_save = _show_duplicate_status(matches,
@@ -329,10 +329,12 @@ def _directory(user: dict, directory: dict):
                 'Status': 'Active' if r['User_Is_Active'] else 'Inactive',
                 'Management': 'Yes' if r['Can_Manage_Users_Config'] else 'No',
             } for r in filtered]
+            visible_ids = ','.join(str(row['ID']) for row in records)
+            grid_key = 'gw_users_table_' + sha256(visible_ids.encode()).hexdigest()[:12]
             event = st.dataframe(pd.DataFrame(records, columns=[
                 'ID', 'Name', 'Username', 'Role', 'Branch', 'Status', 'Management']),
                 width='stretch', hide_index=True, height=460,
-                on_select='rerun', selection_mode='single-row', key='gw_users_table')
+                on_select='rerun', selection_mode='single-row', key=grid_key)
             selection = event.selection.rows if hasattr(event, 'selection') else []
             if selection and 0 <= selection[0] < len(filtered):
                 new_selection = int(filtered[selection[0]]['User_Id'])
@@ -343,8 +345,10 @@ def _directory(user: dict, directory: dict):
             st.caption(f'{len(filtered)} of {len(users)} accounts shown')
     with right:
         selected_id = st.session_state.get('gw_users_selected_id')
-        selected = next((r for r in users if r['User_Id'] == selected_id), None)
+        selected = next((r for r in filtered if r['User_Id'] == selected_id), None)
         if not selected:
+            for key in ('gw_users_selected_id', 'gw_users_edit_profile_id', 'gw_users_edit_profile_original'):
+                st.session_state.pop(key, None)
             with st.container(key='gw_users_detail_card'):
                 _html('<div class="gw-users-card-title">Account details</div>')
                 st.info('Select a row on the left to review or modify an account.')

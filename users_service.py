@@ -458,8 +458,17 @@ def set_account_active(actor: dict, target_id: int, active: bool,
     def write(cur, role):
         t = _target(cur, target_id)
         _can_modify(actor, role, t)
+        if bool(t['User_Is_Active']) == active:
+            return
         cur.execute('UPDATE USER_ACCOUNT SET User_Is_Active=%s WHERE User_Id=%s',
                     (int(active), target_id))
+        if not active:
+            # Revocation survives a later reactivation, even for an idle session.
+            cur.execute('''INSERT INTO USER_PASSWORD_STATE (User_Id, Session_Version)
+                VALUES (%s, 1) ON DUPLICATE KEY UPDATE Session_Version=Session_Version+1''',
+                (target_id,))
+            cur.execute('''UPDATE USER_PASSWORD_TOKEN SET Consumed_At=UTC_TIMESTAMP()
+                WHERE User_Id=%s AND Consumed_At IS NULL''', (target_id,))
     _execute_write(actor, write, connection_factory)
 
 

@@ -36,6 +36,20 @@ class UserPageTests(unittest.TestCase):
         self.styles.assert_called_once_with('users.css')
         read.assert_called_once_with(ADMIN)
 
+    def test_filtered_out_account_cannot_still_be_managed(self):
+        self.ui.session_state['gw_users_selected_id'] = ROWS[0]['User_Id']
+        self.ui.session_state['gw_users_search'] = 'missing account'
+        page._directory(ADMIN, dict(users=ROWS, branches=BRANCHES, can_grant_access=True))
+        self.assertNotIn('gw_users_selected_id', self.ui.session_state)
+        self.assertFalse(any(label == 'Save account status' for label, _ in self.ui.button_calls))
+
+    def test_grid_selection_is_reset_when_account_positions_change(self):
+        directory = dict(users=ROWS, branches=BRANCHES, can_grant_access=True)
+        page._directory(ADMIN, directory)
+        first = self.ui.grid_events[-1][1]['key']
+        page._directory(ADMIN, dict(directory, users=[dict(ROWS[0], User_Id=11), *ROWS]))
+        self.assertNotEqual(first, self.ui.grid_events[-1][1]['key'])
+
     def test_unprivileged_staff_cannot_even_load_directory(self):
         with patch.object(page,'load_user_directory') as read:
             page.show_user_management(dict(STAFF,can_manage_users_config=False))

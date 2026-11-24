@@ -97,7 +97,7 @@ def show_login():
                 submitted = st.form_submit_button(
                     "Login",
                     type="primary",
-                    use_container_width=True
+                    width="stretch"
                 )
 
             # Password recovery information
@@ -124,7 +124,7 @@ def show_login():
                     user = authenticate(login_identifier, password)
 
                 except (mysql.connector.Error, RuntimeError):
-                    logger.exception(
+                    logger.error(
                         "Login failed due to a database/configuration error"
                     )
                     st.error(
@@ -233,7 +233,7 @@ def show_password_reset():
                 submitted = st.form_submit_button(
                     "Send Reset Link",
                     type="primary",
-                    use_container_width=True
+                    width="stretch"
                 )
 
             # Handle reset request
@@ -257,7 +257,7 @@ def show_password_reset():
                 "← Back to Login",
                 key="gw_reset_back",
                 type="tertiary",
-                use_container_width=True
+                width="stretch"
             ):
                 st.session_state["auth_view"] = "login"
                 st.rerun()
@@ -303,7 +303,7 @@ def show_link_password_reset(raw_token: str):
             with st.form('gw_one_time_password_form'):
                 p1 = st.text_input('New Password', type='password', key='gw_link_new_password')
                 p2 = st.text_input('Confirm New Password', type='password', key='gw_link_confirm_password')
-                submitted = st.form_submit_button('Save New Password', type='primary', use_container_width=True)
+                submitted = st.form_submit_button('Save New Password', type='primary', width="stretch")
             if submitted:
                 if p1 != p2:
                     st.error('Passwords do not match.')
@@ -340,7 +340,7 @@ def show_forced_password_change(user: dict):
                 old = st.text_input('Temporary Password', type='password', key='gw_temporary_current')
                 new = st.text_input('New Password', type='password', key='gw_temporary_new')
                 confirm = st.text_input('Confirm New Password', type='password', key='gw_temporary_confirm')
-                submitted = st.form_submit_button('Change Password', type='primary', use_container_width=True)
+                submitted = st.form_submit_button('Change Password', type='primary', width="stretch")
             if submitted:
                 if new != confirm:
                     st.error('Passwords do not match.')
@@ -396,7 +396,7 @@ def main():
         ValueError,
         TypeError
     ):
-        logger.exception("Could not refresh authenticated user")
+        logger.error("Could not refresh authenticated user")
         st.error(
             "Cannot verify your session. Please try again later."
         )

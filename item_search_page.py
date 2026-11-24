@@ -30,10 +30,12 @@ from item_search import (
 from pricing_decision import (
     PricingValidationError,
     PricingSaveError,
+    StalePricingDraftError,
     barcode_svg,
     money,
     printable_label_pdf,
     save_pricing_decision,
+    submitted_tag_exists,
 )
 
 LOG = logging.getLogger(__name__)
@@ -115,7 +117,7 @@ def _header(employee: dict, show_header: bool, on_logout=None) -> None:
                 '</div>', unsafe_allow_html=True,
             )
         with d:
-            if st.button('Logout', key=f'{P}logout', use_container_width=True):
+            if st.button('Logout', key=f'{P}logout', width="stretch"):
                 if on_logout is not None:
                     on_logout()
                 else:
@@ -245,7 +247,7 @@ def _item_form(employee: dict, lookups: dict[str, dict[int, str]], user_id: int)
                 ):
                     _clear_search()
                 if st.button('Search Guidelines', type='secondary',
-                             use_container_width=True, key=f'{P}search'):
+                             width="stretch", key=f'{P}search'):
                     _search_guidelines(employee, selected, description)
                     st.rerun()
                 search_error = st.session_state.get(SEARCH_ERROR_KEY)
@@ -346,7 +348,7 @@ def _item_form(employee: dict, lookups: dict[str, dict[int, str]], user_id: int)
                     unsafe_allow_html=True,
                 )
                 if st.button('Submit & Generate Tag', type='primary',
-                             use_container_width=True, key=f'{P}submit', disabled=not valid_draft) and valid_draft:
+                             width="stretch", key=f'{P}submit', disabled=not valid_draft) and valid_draft:
                     if price_error:
                         st.error(price_error)
                     elif delta is not None and delta != 0 and not reason:
@@ -356,12 +358,17 @@ def _item_form(employee: dict, lookups: dict[str, dict[int, str]], user_id: int)
                         # a slow save cannot submit the same item again.
                         try:
                             receipt = save_pricing_decision(user_id, draft, raw_final_price, reason)
+                        except StalePricingDraftError as exc:
+                            _clear_search()
+                            st.session_state[SEARCH_ERROR_KEY] = ('warning', str(exc))
+                            st.rerun()
                         except (PricingValidationError, ItemEntryError) as exc:
                             st.session_state[DRAFT_KEY] = draft
                             st.warning(str(exc))
                         except PricingSaveError as exc:
                             if exc.uncertain_tag:
                                 _clear_search()
+                                st.session_state[f'{P}pending_save'] = (user_id, exc.uncertain_tag)
                                 st.session_state[SEARCH_ERROR_KEY] = (
                                     'warning', f'Save confirmation was interrupted. Check Pricing History for tag '
                                                f'{exc.uncertain_tag} before pricing this item again.'
@@ -459,9 +466,9 @@ def _render_receipt(receipt: dict, employee: dict) -> None:
                     'Print Tag', data=pdf_bytes,
                     file_name=f"goodwill_{receipt['tag_number']}.pdf",
                     mime='application/pdf', type='primary',
-                    use_container_width=True, key=f'{P}print',
+                    width="stretch", key=f'{P}print',
                 )
-            if st.button('Start Next Item', use_container_width=True, key=f'{P}next'):
+            if st.button('Start Next Item', width="stretch", key=f'{P}next'):
                 _start_next_item()
                 st.rerun()
             st.markdown(
@@ -496,6 +503,25 @@ def render_item_search_page(*, show_header: bool = True, on_logout=None) -> None
         st.error('Only active store staff accounts can access Item Pricing.')
         return
     _header(employee, show_header, on_logout=on_logout)
+
+    pending = st.session_state.get(f'{P}pending_save')
+    if pending and pending[0] == user_id:
+        tag = pending[1]
+        try:
+            exists = submitted_tag_exists(tag)
+        except Exception:
+            st.warning(f'Save status for {tag} is pending. Check again before retrying.')
+            if st.button('Check save status', key=f'{P}check_pending'):
+                st.rerun()
+            return
+        if exists:
+            st.info(f'Tag {tag} already exists. Review Pricing History before starting another item.')
+            if st.button('Start Next Item', key=f'{P}next_after_check'):
+                _start_next_item()
+                st.rerun()
+            return
+        st.session_state.pop(f'{P}pending_save')
+        st.session_state[SEARCH_ERROR_KEY] = ('warning', f'Tag {tag} was not saved. Search again to retry.')
 
     receipt = st.session_state.get(RECEIPT_KEY)
     if receipt:

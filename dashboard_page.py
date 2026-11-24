@@ -17,7 +17,7 @@ import streamlit as st
 from style_loader import load_styles
 
 from dashboard_data import (
-    DashboardPermissionError,
+    DashboardPermissionError, UNKNOWN_BRANCH,
     as_money,
     get_admin_snapshot,
     get_history,
@@ -129,7 +129,7 @@ def _action(title: str, description: str, symbol: str, route: str,
               f'{_safe(symbol)}</div><div class="gw-action-title">{_safe(title)}</div></div>'
               f'<div class="gw-action-desc">{_safe(description)}</div>')
         if st.button(f"Open {title}  →", key=f"gw_open_{key}",
-                     use_container_width=True):
+                     width="stretch"):
             _go(on_navigate, route)
 
 
@@ -155,6 +155,8 @@ def _activity(rows: list[dict], *, admin: bool, history: bool = False) -> None:
         if history:
             if admin:
                 item_details += f'<div class="gw-activity-sub">{_safe(row.get("category"))}</div>'
+            else:
+                item_details += f'<div class="gw-activity-sub">Store: {_safe(row.get("branch_name") or "Unknown")}</div>'
             if row.get("override_reason"):
                 item_details += (
                     f'<div class="gw-activity-sub">Override reason: {_safe(row["override_reason"])}</div>'
@@ -251,7 +253,7 @@ def show_staff_dashboard(user: Mapping, on_navigate: Callable[[str], None]) -> N
                       ["Item Details", "Recommendation", "Final Decision", "Print Tag"], start=1)
               ) + '</div></div>')
         if st.button("Start Pricing  →", key="gw_staff_start", type="primary",
-                     use_container_width=True):
+                     width="stretch"):
             _go(on_navigate, "item_search")
     _section("Your Activity")
     metrics = data["metrics"]
@@ -334,10 +336,11 @@ def show_pricing_history(user: Mapping, on_navigate: Callable[[str], None]) -> N
     if admin:
         branch_options = [None] + [int(item['id']) for item in options['branches']]
         branch_names = {int(item['id']): str(item['name']) for item in options['branches']}
+        branch_options.append(UNKNOWN_BRANCH)
         with branch_col:
             branch_id = st.selectbox('Branch', branch_options,
                 format_func=lambda x: 'All branches' if x is None else
-                    f'{branch_names[x]} (#{x})', key=f'{prefix}_branch')
+                    'Unknown' if x == UNKNOWN_BRANCH else f'{branch_names[x]} (#{x})', key=f'{prefix}_branch')
         staff_options = [None] + [int(item['id']) for item in options['staff']]
         staff_names = {int(item['id']):
                        f"{item.get('first_name', '')} {item.get('last_name', '')}".strip()
@@ -384,8 +387,7 @@ def show_pricing_history(user: Mapping, on_navigate: Callable[[str], None]) -> N
     st.caption(f'{len(rows)} matching decisions shown (maximum 200 per query). '
                'Filters search the full database history before limiting results.')
     if admin:
-        st.caption('Branch reflects each employee\'s current assignment, '
-                   'not necessarily the branch at the time of pricing.')
+        st.caption('Branch is recorded at pricing time. Older records may show Unknown.')
     else:
         st.caption('Only pricing decisions submitted by your account are accessible.')
     _activity(rows, admin=admin, history=True)

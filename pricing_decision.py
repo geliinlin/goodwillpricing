@@ -27,6 +27,10 @@ class PricingValidationError(ValueError):
     """Expected user-action error: explain it and allow a corrected submission."""
 
 
+class StalePricingDraftError(PricingValidationError):
+    """The draft no longer matches the authorized staff, store, or current guideline."""
+
+
 class PricingSaveError(RuntimeError):
     """An unexpected database/backend failure with a non-sensitive diagnostic stage."""
 
@@ -112,6 +116,20 @@ def _connection(factory: ConnectionFactory | None):
     return factory()
 
 
+def submitted_tag_exists(tag: str, connection_factory=None) -> bool:
+    """Reconcile on the writer, after the previous submission releases its lock."""
+    with _connection(connection_factory) as conn, conn.cursor(buffered=True) as cursor:
+        cursor.execute('SELECT GET_LOCK(%s, 10)', (LOCK_NAME,))
+        if cursor.fetchone()[0] != 1:
+            raise RuntimeError('Submission status is still pending.')
+        try:
+            cursor.execute('SELECT 1 FROM PRICING_DECISION WHERE Decision_Tag_Number=%s', (tag,))
+            return cursor.fetchone() is not None
+        finally:
+            cursor.execute('SELECT RELEASE_LOCK(%s)', (LOCK_NAME,))
+            cursor.fetchone()
+
+
 def save_pricing_decision(
     user_id: int,
     draft: Mapping[str, Any],
@@ -184,9 +202,9 @@ def save_pricing_decision(
         )
         staff = cursor.fetchone()
         if not staff or int(staff['Staff_Id']) != staff_id:
-            raise PricingValidationError('Your staff account is no longer authorized. Sign in again.')
+            raise StalePricingDraftError('Your staff account is no longer authorized. Sign in again.')
         if int(staff['Branch_Id']) != branch_id:
-            raise PricingValidationError('Your assigned store has changed. Search again.')
+            raise StalePricingDraftError('Your assigned store has changed. Search again.')
 
         stage = 'checking active pricing guideline'
         cursor.execute(
@@ -195,13 +213,13 @@ def save_pricing_decision(
         )
         guidelines = cursor.fetchall()
         if len(guidelines) != 1:
-            raise PricingValidationError(
+            raise StalePricingDraftError(
                 'The guideline is missing or ambiguous. Ask an administrator to review it, then search again.'
             )
         guideline = guidelines[0]
         current_price = money(guideline['Guideline_Suggested_Price'])
         if guideline_id != int(guideline['Guideline_Id']) or displayed_price != current_price:
-            raise PricingValidationError('The suggested price has changed. Click Search Guidelines again.')
+            raise StalePricingDraftError('The suggested price has changed. Click Search Guidelines again.')
         override = validate_override(price, current_price, reason)
 
         # The G3 script defines integer PKs without AUTO_INCREMENT.  The named
@@ -232,10 +250,10 @@ def save_pricing_decision(
             """
             INSERT INTO PRICING_DECISION
               (Decision_Id, Decision_Datetime, Decision_Reason, Decision_Final_Price,
-               Decision_Tag_Number, Guideline_Id, Staff_Id, Item_Id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+               Decision_Tag_Number, Guideline_Id, Staff_Id, Item_Id, Decision_Branch_Id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (decision_id, now, override, price, tag, guideline_id, int(staff['Staff_Id']), item_id),
+            (decision_id, now, override, price, tag, guideline_id, int(staff['Staff_Id']), item_id, int(staff['Branch_Id'])),
         )
         receipt = PricingReceipt(
             decision_id=decision_id,
@@ -314,7 +332,9 @@ def printable_label_pdf(receipt: Mapping[str, Any]) -> bytes:
     pdf.setFont('Helvetica-Bold', 18)
     pdf.drawString(16, h-30, 'goodwill')
     pdf.setFont('Helvetica', 9)
-    pdf.drawRightString(w-16, h-27, f"STORE {int(receipt['branch_id']):03d}")
+    branch = receipt.get("branch_id")
+    store = "Unknown" if branch is None else f"{int(branch):03d}"
+    pdf.drawRightString(w-16, h-27, f"STORE {store}")
     pdf.line(16, h-40, w-16, h-40)
 
     def fit_text(text: Any, font: str, size: int, max_width: float) -> str:

@@ -58,8 +58,9 @@ def _authorize(cursor, user, writing=False):
     cursor.execute(
         "SELECT u.User_Id FROM USER_ACCOUNT u "
         "JOIN ADMINISTRATOR a ON a.Admin_Id = u.User_Id "
+        "LEFT JOIN USER_PASSWORD_STATE ps ON ps.User_Id = u.User_Id "
         "WHERE u.User_Id = %s AND u.User_Is_Active = 1 "
-        "AND u.User_Type = 'Administrator'" + (" FOR UPDATE" if writing else ""),
+        "AND u.User_Type = 'Administrator' AND COALESCE(ps.Must_Change_Password, 0) = 0" + (" FOR UPDATE" if writing else ""),
         (user["user_id"],),
     )
     if cursor.fetchone() is None:

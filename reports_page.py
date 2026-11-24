@@ -11,7 +11,7 @@ from typing import Mapping
 
 import streamlit as st
 
-from dashboard_data import DashboardPermissionError
+from dashboard_data import DashboardPermissionError, UNKNOWN_BRANCH
 from reports_data import (get_report_snapshot, get_report_filter_options,
                           PERIODS, ADJUSTMENTS)
 from style_loader import load_styles
@@ -114,7 +114,7 @@ def _staff_table(staff: list[dict], show_all: bool, limit: int) -> None:
     if not staff:
         st.caption("No staff pricing activity for the selected filters.")
     elif len(staff) >= limit:
-        st.caption(f"Showing up to {limit:,} staff. The main totals include all staff.")
+        st.caption(f"Showing up to {limit:,} staff and branch combinations. Totals include all decisions.")
 
 
 def build_reports_pdf(report: dict) -> bytes:
@@ -294,6 +294,7 @@ def show_admin_reports(user: Mapping) -> None:
     branch_names = {int(x['branch_id']): str(x['branch_name']) for x in options['branches']}
     category_names = {int(x['category_id']): str(x['category_name']) for x in options['categories']}
     item_type_names = {int(x['item_type_id']): str(x['item_type_name']) for x in options['item_types']}
+    branch_names[UNKNOWN_BRANCH] = 'Unknown'
     _valid_selection('gw_reports_branch', [None, *branch_names])
     _valid_selection('gw_reports_days', [7, 30, 90, 365, 'custom'])
     _valid_selection('gw_reports_category', [None, *category_names])
@@ -305,7 +306,7 @@ def show_admin_reports(user: Mapping) -> None:
         with caption_col:
             _html('<div class="gw-report-filter-heading">Report filters</div>')
         with reset_col:
-            if st.button('Reset filters', key='gw_reports_reset', use_container_width=True):
+            if st.button('Reset filters', key='gw_reports_reset', width="stretch"):
                 _reset_filters()
                 return
         col_branch, col_staff, col_period = st.columns([1.15, 1.5, 1.15], gap='medium')
@@ -314,12 +315,11 @@ def show_admin_reports(user: Mapping) -> None:
                 'Branch', [None, *branch_names],
                 format_func=lambda x: 'All branches' if x is None else branch_names[x],
                 key='gw_reports_branch')
-        possible_staff = [s for s in options['staff'] if branch_id is None
-                          or int(s['branch_id']) == branch_id]
+        # An employee may have transactions in several branches after a transfer.
         staff_names = {
             int(s['staff_id']): str(s['staff_name']) +
             (' (inactive)' if not bool(s['is_active']) else '')
-            for s in possible_staff
+            for s in options['staff']
         }
         _valid_selection('gw_reports_staff', [None, *staff_names])
         with col_staff:
@@ -396,8 +396,7 @@ def show_admin_reports(user: Mapping) -> None:
     _html('<div class="gw-report-applied-filters"><b>Showing:</b> '
           + ' <span class="gw-report-filter-separator"> · </span> '.join(
               _h(value) for value in selections) + '</div>')
-    st.caption('Dates use America/Detroit. Historical records are attributed to staff members’ '
-               'currently assigned branches.')
+    st.caption('Dates use America/Detroit. Branch is recorded at pricing time. Older records may show Unknown.')
     with export_col:
         try:
             pdf = build_reports_pdf(report)
@@ -409,7 +408,7 @@ def show_admin_reports(user: Mapping) -> None:
         else:
             st.download_button('Export to PDF', data=pdf,
                                file_name=f'goodwill_report_{report_start}_{report_end}.pdf',
-                               mime='application/pdf', use_container_width=True,
+                               mime='application/pdf', width="stretch",
                                key='gw_reports_export', type='primary')
 
     m = report['metrics']
@@ -441,7 +440,7 @@ def show_admin_reports(user: Mapping) -> None:
         _staff_table(report['staff'], showing_all, report['staff_limit'])
         _html(f'<div class="gw-report-table-foot">Showing '
               f'{len(report["staff"]) if showing_all else min(5, len(report["staff"])):,} '
-              f'of {len(report["staff"]):,} staff · Ranked by items priced'
+              f'of {len(report["staff"]):,} staff and branch combinations · Ranked by items priced'
               f'<span>{_h(report["branch_name"])} · {report_start} to {report_end}</span></div>')
         if len(report['staff']) > 5:
             if st.button('Show top 5 only' if showing_all else 'Show all staff',

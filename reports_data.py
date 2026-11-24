@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Any, Callable, Mapping
 from zoneinfo import ZoneInfo
 
-from dashboard_data import DashboardPermissionError
+from dashboard_data import DashboardPermissionError, UNKNOWN_BRANCH
 
 PERIODS = frozenset({7, 30, 90, 365})
 ADJUSTMENTS = frozenset({"all", "overrides", "unchanged", "increased", "decreased"})
@@ -52,7 +52,8 @@ def _assert_admin(conn: Any, user: Mapping[str, Any]) -> None:
         SELECT u.User_Id
         FROM USER_ACCOUNT AS u
         JOIN ADMINISTRATOR AS a ON a.Admin_Id = u.User_Id
-        WHERE u.User_Id = %s AND u.User_Is_Active = 1
+        LEFT JOIN USER_PASSWORD_STATE AS ps ON ps.User_Id = u.User_Id
+        WHERE u.User_Id = %s AND u.User_Is_Active = 1 AND COALESCE(ps.Must_Change_Password, 0) = 0
               AND u.User_Type = 'Administrator'
         LIMIT 1
     """, (user_id,))
@@ -97,13 +98,16 @@ def _optional_id(name: str, value: int | None) -> None:
         raise ValueError(f"Invalid {name} selection")
 
 
-def _conditions(start: datetime, end: datetime, branch_id: int | None,
+def _conditions(start: datetime, end: datetime, branch_id: int | str | None,
                 staff_id: int | None = None, category_id: int | None = None,
                 item_type_id: int | None = None, adjustment: str = "all"):
     """One parameterized WHERE clause shared by every chart and KPI query."""
     where = "d.Decision_Datetime >= %s AND d.Decision_Datetime < %s"
     params: tuple[Any, ...] = (start, end)
-    for column, value in (("ss.Branch_Id", branch_id), ("d.Staff_Id", staff_id),
+    if branch_id == UNKNOWN_BRANCH:
+        where += " AND d.Decision_Branch_Id IS NULL"
+        branch_id = None
+    for column, value in (("d.Decision_Branch_Id", branch_id), ("d.Staff_Id", staff_id),
                           ("i.Category_Id", category_id), ("i.Item_Type_Id", item_type_id)):
         if value is not None:
             # SQL identifiers are constants above, never user-supplied strings.
@@ -180,7 +184,7 @@ def _reason_buckets(rows: list[dict], override_count: int) -> list[dict]:
 
 
 def get_report_snapshot(
-    user: Mapping[str, Any], *, days: int = 30, branch_id: int | None = None,
+    user: Mapping[str, Any], *, days: int = 30, branch_id: int | str | None = None,
     connection_factory: Callable[[], Any] | None = None,
     today: date | None = None,
     start_date: date | None = None, end_date: date | None = None,
@@ -201,7 +205,8 @@ def get_report_snapshot(
         start, end = custom_report_window(start_date, end_date, today=today)
     for name, value in (("branch", branch_id), ("staff", staff_id),
                         ("category", category_id), ("item type", item_type_id)):
-        _optional_id(name, value)
+        if name != "branch" or value != UNKNOWN_BRANCH:
+            _optional_id(name, value)
     if type(adjustment) is not str or adjustment not in ADJUSTMENTS:
         raise ValueError("Invalid price adjustment filter")
     conn = (connection_factory or _connection)()
@@ -212,6 +217,7 @@ def get_report_snapshot(
             FROM BRANCH ORDER BY Branch_Name, Branch_Id
         """)
         branch_lookup = {int(b["branch_id"]): str(b["branch_name"]) for b in branches}
+        branch_lookup[UNKNOWN_BRANCH] = "Unknown"
         if branch_id is not None and branch_id not in branch_lookup:
             raise ValueError("Selected branch no longer exists")
         where, params = _conditions(start, end, branch_id, staff_id, category_id,
@@ -270,7 +276,7 @@ def get_report_snapshot(
         staff = _rows(conn, f"""
             SELECT u.User_Id AS staff_id,
                    CONCAT(u.User_First_Name, ' ', u.User_Last_Name) AS staff_name,
-                   b.Branch_Name AS branch_name,
+                   COALESCE(b.Branch_Name, 'Unknown') AS branch_name,
                    u.User_Is_Active AS is_active,
                    COUNT(*) AS items_priced,
                    AVG(d.Decision_Final_Price) AS average_final_price,
@@ -281,12 +287,12 @@ def get_report_snapshot(
             JOIN PRICING_GUIDELINE AS g ON g.Guideline_Id = d.Guideline_Id
             JOIN STORE_STAFF AS ss ON ss.Staff_Id = d.Staff_Id
             JOIN USER_ACCOUNT AS u ON u.User_Id = d.Staff_Id
-            JOIN BRANCH AS b ON b.Branch_Id = ss.Branch_Id
+            LEFT JOIN BRANCH AS b ON b.Branch_Id = d.Decision_Branch_Id
             JOIN ITEM AS i ON i.Item_Id = d.Item_Id
             WHERE {where}
             GROUP BY u.User_Id, u.User_First_Name, u.User_Last_Name,
                      u.User_Is_Active, b.Branch_Id, b.Branch_Name
-            ORDER BY items_priced DESC, u.User_Last_Name, u.User_First_Name
+            ORDER BY items_priced DESC, u.User_Last_Name, u.User_First_Name, u.User_Id, b.Branch_Id
             LIMIT {MAX_STAFF_ROWS}
         """, params)
         # Staff rows include historic decisions by now-inactive staff (otherwise

@@ -76,7 +76,7 @@ class PricingDecisionTests(unittest.TestCase):
         item_args = next(params for sql, params in con.statements if "INSERT INTO ITEM" in sql)
         decision_args = next(params for sql, params in con.statements if "INSERT INTO PRICING_DECISION" in sql)
         self.assertEqual(item_args, (7, "Blue jeans", datetime.now(mod.TZ).date(), 2, 3, 4, 1))
-        self.assertEqual(decision_args[2:], (None, Decimal("12.00"), receipt.tag_number, 11, 5, item_args[0]))
+        self.assertEqual(decision_args[2:], (None, Decimal("12.00"), receipt.tag_number, 11, 5, item_args[0], 3))
         self.assertTrue(any("RELEASE_LOCK" in sql for sql, _ in con.statements))
         self.assertTrue(con.closed)
         self.assertTrue(all(c.closed for c in con.cursors))

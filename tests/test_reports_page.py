@@ -153,10 +153,15 @@ class ReportPageTests(unittest.TestCase):
         self.assertIn('Ashley Brennan',''.join(self.ui.styles))
         self.assertIn('gw_reports_export',self.ui.downloads[0][1]['key'])
 
-    def test_branch_change_clears_stale_staff_before_report(self):
+    def test_branch_change_keeps_staff_who_now_work_elsewhere(self):
         self.ui.session_state.update(gw_reports_branch=1, gw_reports_staff=9)
         page.show_admin_reports(ADMIN)
-        self.assertNotIn('gw_reports_staff', self.ui.session_state)
+        self.assertEqual(self.query.call_args.kwargs['staff_id'], 9)
+        self.assertEqual(self.query.call_args.kwargs['branch_id'], 1)
+
+    def test_staff_missing_from_directory_is_cleared(self):
+        self.ui.session_state.update(gw_reports_branch=1, gw_reports_staff=77)
+        page.show_admin_reports(ADMIN)
         self.assertIsNone(self.query.call_args.kwargs['staff_id'])
 
     def test_reset_clears_all_report_filters_and_reruns(self):

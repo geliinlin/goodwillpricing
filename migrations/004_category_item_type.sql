@@ -15,7 +15,12 @@ BEGIN
   IF DATABASE() IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Select your Goodwill schema first.';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM ITEM_TYPE WHERE Item_Type_Name='Clothing') THEN
+  IF NOT EXISTS (SELECT 1 FROM ITEM_TYPE WHERE Item_Type_Name='Clothing')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='CATEGORY' AND COLUMN_NAME='Item_Type_Id')
+     AND EXISTS (SELECT 1 FROM CATEGORY c
+                 WHERE NOT EXISTS (SELECT 1 FROM ITEM i WHERE i.Category_Id=c.Category_Id)
+                   AND NOT EXISTS (SELECT 1 FROM PRICING_GUIDELINE g WHERE g.Category_Id=c.Category_Id)) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Clothing Item Type not found; cannot assign unused legacy categories.';
   END IF;
   IF EXISTS (
