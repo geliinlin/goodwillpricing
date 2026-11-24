@@ -6,6 +6,7 @@ normal local-only Streamlit server starts and opens in the browser.
 """
 from __future__ import annotations
 
+import functools
 import hmac
 import html
 import json
@@ -61,7 +62,8 @@ def team_defaults(root: Path | None = None) -> dict:
     import tomllib
     root = root or resource_root()
     p = root / "template" / "team_profile.toml"
-    default = {"host": "", "port": 3306, "database": "Fall2026BIS698TueG3s"}
+    default = {"host": "141.209.241.91", "port": 3306,
+               "user": "Fall2026BIS698TueG3", "database": "Fall2026BIS698TueG3s"}
     if p.is_file():
         try:
             raw = tomllib.loads(p.read_text(encoding="utf-8"))
@@ -169,6 +171,24 @@ def _toml_text(values: dict) -> str:
 def save_user_config(secret_path: Path, values: dict) -> None:
     import tomllib
     content = _toml_text(values)
+    # Keep optional SMTP settings previously entered by the user. The Mac
+    # first-run wizard configures MySQL only; it must not erase email settings.
+    if secret_path.is_file():
+        try:
+            prior = tomllib.loads(secret_path.read_text(encoding="utf-8"))
+            old_email = prior.get("email")
+            if isinstance(old_email, dict):
+                email_lines = ["[email]"]
+                for key in ("host", "port", "username", "password", "from_address", "security"):
+                    val = old_email.get(key)
+                    if isinstance(val, str):
+                        email_lines.append(f"{key} = {json.dumps(val, ensure_ascii=False)}")
+                    elif isinstance(val, int) and not isinstance(val, bool):
+                        email_lines.append(f"{key} = {val}")
+                if len(email_lines) > 1:
+                    content += "\n" + "\n".join(email_lines) + "\n"
+        except (ValueError, OSError):
+            pass
     tomllib.loads(content)  # Defensive verification before writing.
     secret_path.parent.mkdir(parents=True, exist_ok=True)
     temp = None
@@ -194,7 +214,7 @@ def probe_connection(values: dict) -> bool:
         opts = {k: values[k] for k in ("host", "port", "user", "password", "database")}
         if values.get("ssl_ca"):
             opts.update(ssl_ca=values["ssl_ca"], ssl_verify_cert=True, ssl_verify_identity=True)
-        conn = mysql.connector.connect(**opts, connection_timeout=6)
+        conn = mysql.connector.connect(**opts, connection_timeout=6, use_pure=True)
         try:
             cursor = conn.cursor()
             try:
@@ -208,6 +228,47 @@ def probe_connection(values: dict) -> bool:
     except Exception:
         # Do not show detailed connector errors that may contain hostnames/credentials.
         return False
+
+
+def prepare_bundled_mysql_connector() -> None:
+    """Avoid native MySQL authentication-plugin libraries in the packaged app.
+
+    The separate first-run connection probe already passes use_pure=True.
+    This hook also covers existing application code that calls
+    mysql.connector.connect(**config) without specifying use_pure. It must be
+    installed in the --serve child *before* Streamlit imports the app modules.
+
+    Imports below are also explicit PyInstaller collection hints. The build
+    configuration should additionally collect mysql.connector.locales and
+    mysql.connector.plugins because Connector/Python loads them dynamically.
+    """
+    import mysql.connector
+
+    try:
+        # These modules are imported dynamically by Connector/Python; make
+        # their presence visible to PyInstaller's static dependency analysis.
+        from mysql.connector.locales.eng import client_error as _english_errors
+    except ImportError:
+        # Different connector versions may arrange their locale data differently.
+        pass
+    try:
+        from mysql.connector.plugins import mysql_native_password as _auth_plugin
+    except ImportError:
+        pass
+
+    current_connect = mysql.connector.connect
+    if getattr(current_connect, "_goodwill_pure_python", False):
+        return
+
+    @functools.wraps(current_connect)
+    def connect_pure(*args, **kwargs):
+        # Explicitly prefer the pure-Python client, even if a caller supplies
+        # use_pure=False. This avoids missing bundled native authentication DLLs.
+        kwargs["use_pure"] = True
+        return current_connect(*args, **kwargs)
+
+    connect_pure._goodwill_pure_python = True
+    mysql.connector.connect = connect_pure
 
 
 def _page(values: dict, token: str, feedback: str = "", error: bool = False) -> bytes:
@@ -354,6 +415,9 @@ def serve() -> None:
     for key in list(os.environ):
         if key.startswith("MYSQL_"):
             os.environ.pop(key, None)
+    # Ensure both the desktop build and existing application modules use the
+    # pure-Python Connector/Python implementation during *actual* logins.
+    prepare_bundled_mysql_connector()
     # PyInstaller can make Streamlit misdetect this packaged app as its own
     # development environment, where explicit server.port is forbidden.
     # Set the environment before importing Streamlit; the CLI flag ensures
@@ -407,7 +471,8 @@ def launch() -> int:
     home = user_dir()
     home.mkdir(parents=True, exist_ok=True)
     secret_path, first_run = prepare_user_config(home)
-    if first_run or not settings_appear_valid(secret_path):
+    force_setup = any(arg in ("--setup", "--configure") for arg in sys.argv[1:])
+    if first_run or force_setup or not settings_appear_valid(secret_path):
         if not run_setup_wizard(secret_path, team_defaults()):
             report("Goodwill Setup", "Database configuration was not saved. Reopen Goodwill to try again.")
             return 2

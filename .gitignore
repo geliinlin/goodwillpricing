@@ -29,3 +29,10 @@ dist/
 *.spec
 *.egg-info/
 .git/
+
+# Generated test outputs (keep tests/ source files tracked)
+test-results/
+
+# Local backups and one-time patch scripts
+*.bak
+/move_guideline_header.py
